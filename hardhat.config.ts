@@ -32,7 +32,7 @@ const config: HardhatUserConfig = {
       default: 1,
     }
   },
-  solidity: '0.8.11',
+  solidity: '0.8.13',
   etherscan: {
     // Your API key for Etherscan
     // Obtain one at https://etherscan.io/

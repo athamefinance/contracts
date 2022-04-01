@@ -30,7 +30,7 @@ describe('Athame Contract (depository)', function () {
     [owner, feeCollector, alice, bob, carol] = await ethers.getSigners();
 
     athameTokenFactory = await ethers.getContractFactory('AthameToken');
-    mockTokenFactory = await ethers.getContractFactory('Dai');
+    mockTokenFactory = await ethers.getContractFactory('Usd'); //18 or 6 decimals
     treasuryFactory = await ethers.getContractFactory('AthameTreasury');
     depositoryFactory = await ethers.getContractFactory('AthameDepository');
   });
@@ -46,6 +46,8 @@ describe('Athame Contract (depository)', function () {
     // deploy mock token    
     mockToken = await mockTokenFactory.deploy();
     await mockToken.deployed();
+    const decimals = await mockToken.decimals();
+    const sharePrice = ethers.utils.parseUnits('10', decimals);
 
     console.log('Mock Token deployed to:', mockToken.address);
 
@@ -59,7 +61,11 @@ describe('Athame Contract (depository)', function () {
     console.log('Treasury deployed to:', treasury.address);
 
     // deploy depository
-    depository = await depositoryFactory.deploy(treasury.address, athameToken.address, mockToken.address, feeCollector.address);
+    depository = await depositoryFactory.deploy(treasury.address,
+      athameToken.address,
+      mockToken.address,
+      feeCollector.address,
+      sharePrice); // 10 of chosen stable coin
 
     await athameToken.grantMinterRole(depository.address);
 
@@ -94,8 +100,9 @@ describe('Athame Contract (depository)', function () {
 
     it("token: transfer tokens between accounts", async function () {
       // Transfer 50 tokens from owner to feeCollector
-      await mockToken.transfer(feeCollector.address, ethers.utils.parseEther('50'));
-      expect(await mockToken.balanceOf(feeCollector.address)).to.equal(ethers.utils.parseEther('50'));
+      const decimals = await mockToken.decimals();
+      await mockToken.transfer(feeCollector.address, ethers.utils.parseUnits('50', decimals));
+      expect(await mockToken.balanceOf(feeCollector.address)).to.equal(ethers.utils.parseUnits('50', decimals));
     });
 
   });
@@ -132,7 +139,7 @@ describe('Athame Contract (depository)', function () {
 
       await treasury.grantRole(liquidityRole, mockToken.address); // set liquidity token
       await treasury.grantRole(depositorRole, depository.address); // set depositor
-      
+
       expect(depository.connect(alice).buyShares(shares)).to.be.revertedWith('ERC20: transfer amount exceeds balance');
     });
 
@@ -149,12 +156,12 @@ describe('Athame Contract (depository)', function () {
 
       const expectedBalance = TOTAL_TOKENS - (shares * sharePrice);
       const expectedTreasuryBalance = shares * sharePrice;
-      let [account, userShareCount] = await depository.investors(owner.address);
-      const treasuryDaiBalance = toFloat(await mockToken.balanceOf(treasury.address), decimals);
+      let [, userShareCount] = await depository.investors(owner.address);
+      const treasuryDepositTokenBalance = toFloat(await mockToken.balanceOf(treasury.address), decimals);
       const treasuryBalance = toFloat(await treasury.totalReserves(), decimals);
 
       expect(toFloat(await mockToken.balanceOf(owner.address), decimals)).to.equal(expectedBalance);
-      expect(treasuryDaiBalance).to.equal(expectedTreasuryBalance);
+      expect(treasuryDepositTokenBalance).to.equal(expectedTreasuryBalance);
       expect(treasuryBalance).to.equal(expectedTreasuryBalance);
       expect(Number(await depository.totalShareCount())).to.equal(shares);
       expect(userShareCount).to.equal(0); // not vested
@@ -163,9 +170,11 @@ describe('Athame Contract (depository)', function () {
     it('Total contract share count should equal users share count', async function () {
       await depository.unpause();
 
-      await mockToken.transfer(alice.address, ethers.utils.parseUnits('1000', 18));
-      await mockToken.transfer(bob.address, ethers.utils.parseUnits('1000', 18));
-      await mockToken.transfer(carol.address, ethers.utils.parseUnits('1000', 18));
+      const decimals = await mockToken.decimals();
+
+      await mockToken.transfer(alice.address, ethers.utils.parseUnits('1000', decimals));
+      await mockToken.transfer(bob.address, ethers.utils.parseUnits('1000', decimals));
+      await mockToken.transfer(carol.address, ethers.utils.parseUnits('1000', decimals));
 
       const shares = 1;
       await treasury.grantRole(liquidityRole, mockToken.address); // set liquidity token
@@ -192,9 +201,11 @@ describe('Athame Contract (depository)', function () {
     it('Should be able to claim', async function () {
       await depository.unpause();
 
-      await mockToken.transfer(alice.address, ethers.utils.parseUnits('1000', 18));
-      await mockToken.transfer(bob.address, ethers.utils.parseUnits('1000', 18));
-      await mockToken.transfer(carol.address, ethers.utils.parseUnits('1000', 18));
+      const decimals = await mockToken.decimals();
+
+      await mockToken.transfer(alice.address, ethers.utils.parseUnits('1000', decimals));
+      await mockToken.transfer(bob.address, ethers.utils.parseUnits('1000', decimals));
+      await mockToken.transfer(carol.address, ethers.utils.parseUnits('1000', decimals));
 
       await treasury.grantRole(liquidityRole, mockToken.address); // set liquidity token
       await treasury.grantRole(depositorRole, depository.address); // set depositor

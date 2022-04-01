@@ -13,7 +13,7 @@ const deployConfigure: DeployFunction = async function (hre: HardhatRuntimeEnvir
     const treasuryContract = await ethers.getContractAt(CONTRACTS.treasury, treasury.address);
     const athameToken = await deployments.get(CONTRACTS.ath);
     const athameTokenContract = await ethers.getContractAt(CONTRACTS.ath, athameToken.address);
-    const daiAddress = process.env.DAI_ADDRESS;
+    const depositTokenAddress = process.env.DEPOSIT_TOKEN_ADDRESS;
 
     log("----------------------------------------------------");
     log("Configuring Athame Contracts...");
@@ -22,8 +22,8 @@ const deployConfigure: DeployFunction = async function (hre: HardhatRuntimeEnvir
     const liquidityRole = await treasuryContract.LIQUIDITYTOKEN();
 
     // these need to be run before accepting investors
-    log("Granting liquidityRole role to ", daiAddress);
-    await treasuryContract.grantRole(liquidityRole, daiAddress); // set liquidity token
+    log("Granting liquidityRole role to ", depositTokenAddress);
+    await treasuryContract.grantRole(liquidityRole, depositTokenAddress); // set liquidity token
     log("Granting depositorRole role to ", depository.address);
     await treasuryContract.grantRole(depositorRole, depository.address); // set depositor
     log("Granting minter role to ", depository.address);

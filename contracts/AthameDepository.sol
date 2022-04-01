@@ -9,7 +9,6 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 import "./interfaces/IERC20Mintable.sol";
 import "./interfaces/ITreasury.sol";
-import "hardhat/console.sol";
 
 contract AthameDepository is Ownable, Pausable {
     using SafeERC20 for IERC20;
@@ -64,7 +63,8 @@ contract AthameDepository is Ownable, Pausable {
         address _treasury,
         address _athame,
         address _depositToken,
-        address _feeCollector
+        address _feeCollector,
+        uint256 _sharePrice
     ) {
         _pause(); // initialize paused
 
@@ -72,9 +72,9 @@ contract AthameDepository is Ownable, Pausable {
         treasury = _treasury;
         ATHAME = _athame;
         depositToken = _depositToken;
+        sharePrice = _sharePrice;
 
         // defaults
-        sharePrice = 10000000000000000000;
         fee = 100;
     }
 

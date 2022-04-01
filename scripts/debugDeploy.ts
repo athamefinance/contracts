@@ -10,7 +10,7 @@ async function main() {
     console.log();
 
     const athameTokenFactory = await ethers.getContractFactory('AthameToken');
-    const daitokenFactory = await ethers.getContractFactory('Dai');
+    const mockTokenFactory = await ethers.getContractFactory('Usd');
     const treasuryFactory = await ethers.getContractFactory('AthameTreasury');
     const depositoryFactory = await ethers.getContractFactory('AthameDepository');
 
@@ -22,10 +22,12 @@ async function main() {
     console.log();
 
     // deploy dai token
-    const daitoken = await daitokenFactory.deploy();
-    await daitoken.deployed();
+    const mockToken = await mockTokenFactory.deploy();
+    await mockToken.deployed();
+    const decimals = await mockToken.decimals();
+    const sharePrice = ethers.utils.parseUnits('10', decimals);
 
-    console.log('Dai mock token deployed to:', daitoken.address);
+    console.log('Deposit token mock deployed to:', mockToken.address);
     console.log();
 
     // deploy treasury
@@ -36,7 +38,11 @@ async function main() {
     console.log();
 
     // deploy depository
-    const depository = await depositoryFactory.deploy(treasury.address, athameToken.address, daitoken.address, feeCollector.address);
+    const depository = await depositoryFactory.deploy(treasury.address, 
+        athameToken.address, 
+        mockToken.address, 
+        feeCollector.address,
+        sharePrice);
     await depository.deployed();
 
     console.log('AthameDepository deployed to:', depository.address);
@@ -46,15 +52,15 @@ async function main() {
     const liquidityRole = await treasury.LIQUIDITYTOKEN();
 
     // these need to be run before accepting investors
-    await treasury.grantRole(liquidityRole, daitoken.address); // set liquidity token
+    await treasury.grantRole(liquidityRole, mockToken.address); // set liquidity token
     await treasury.grantRole(depositorRole, depository.address); // set depositor
     await athameToken.grantMinterRole(depository.address); // set minter role
     await depository.unpause(); // then unpause
 
-    await daitoken.transfer(feeCollector.address, ethers.utils.parseUnits('5000', 18));
+    await mockToken.transfer(feeCollector.address, ethers.utils.parseUnits('5000', decimals));
 
-    await daitoken.connect(owner).approve(depository.address, LARGE_APPROVAL);
-    await daitoken.connect(feeCollector).approve(depository.address, LARGE_APPROVAL);
+    await mockToken.connect(owner).approve(depository.address, LARGE_APPROVAL);
+    await mockToken.connect(feeCollector).approve(depository.address, LARGE_APPROVAL);
 
     await depository.connect(owner).buyShares(2000);
 
@@ -64,9 +70,8 @@ async function main() {
 
     // should not be vested
     await depository.connect(feeCollector).buyShares(233);
-
-    await treasury.withdraw(ethers.utils.parseUnits('5000', 18), daitoken.address);
-    await depository.deposit(ethers.utils.parseUnits('1000', 18));
+    await treasury.withdraw(ethers.utils.parseUnits('5000', decimals), mockToken.address);
+    await depository.deposit(ethers.utils.parseUnits('1000', decimals));
 
 }
 

@@ -9,14 +9,14 @@ const deployAthameDepository: DeployFunction = async function (hre: HardhatRunti
     const { deployer, feeCollector } = await getNamedAccounts();
     const treasury = await deployments.get(CONTRACTS.treasury);
     const athameToken = await deployments.get(CONTRACTS.ath);
-    const daiAddress = process.env.DAI_ADDRESS;
+    const depositTokenAddress = process.env.DEPOSIT_TOKEN_ADDRESS;
 
     log("----------------------------------------------------");
     log("Deploying Athame Depository and waiting for confirmations...");
 
     const result = await deploy(CONTRACTS.depository, {
         from: deployer,
-        args: [treasury.address, athameToken.address, daiAddress, feeCollector],
+        args: [treasury.address, athameToken.address, depositTokenAddress, feeCollector],
         log: true,
         // we need to wait if on a live network so we can verify properly
         waitConfirmations: 1

@@ -1,5 +1,6 @@
 import { HardhatRuntimeEnvironment } from "hardhat/types";
 import { DeployFunction } from "hardhat-deploy/types";
+import { ethers } from "ethers";
 import { CONTRACTS } from "../../constants";
 
 const deployAthameDepository: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
@@ -11,12 +12,14 @@ const deployAthameDepository: DeployFunction = async function (hre: HardhatRunti
     const athameToken = await deployments.get(CONTRACTS.ath);
     const depositTokenAddress = process.env.DEPOSIT_TOKEN_ADDRESS;
 
+    const sharePrice = ethers.utils.parseUnits('10', 6);
+
     log("----------------------------------------------------");
     log("Deploying Athame Depository and waiting for confirmations...");
 
     const result = await deploy(CONTRACTS.depository, {
         from: deployer,
-        args: [treasury.address, athameToken.address, depositTokenAddress, feeCollector],
+        args: [treasury.address, athameToken.address, depositTokenAddress, feeCollector, sharePrice],
         log: true,
         // we need to wait if on a live network so we can verify properly
         waitConfirmations: 1

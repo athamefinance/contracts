@@ -17,11 +17,7 @@ const config: HardhatUserConfig = {
     },
     network: {
       url: process.env.API_URL,
-      chainId: Number(process.env.CHAIN_ID),
-      accounts: {
-        mnemonic: process.env.MNEMONIC,
-        passphrase: process.env.PASSPHRASE
-      }
+      chainId: Number(process.env.CHAIN_ID)
     }
   },
   namedAccounts: {

@@ -2,7 +2,7 @@ import { ethers } from 'hardhat';
 
 async function main() {
 
-    const LARGE_APPROVAL: string = "100000000000000000000000000";
+    const LARGE_APPROVAL: string = "100000000000";
     const [owner, feeCollector] = await ethers.getSigners();
 
     console.log('owner public address: ', owner.address);

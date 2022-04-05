@@ -10,7 +10,7 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 contract AthameToken is ERC20, ERC20Burnable, AccessControl, Ownable {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
-    constructor() ERC20("Athame Finance Governance Token", "gATH") {
+    constructor() ERC20("Athame Finance Token", "ATHF") {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(MINTER_ROLE, msg.sender);
     }

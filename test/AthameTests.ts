@@ -2,7 +2,7 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { Contract, ContractFactory } from "ethers";
 import { ethers } from "hardhat";
-import { toFloat } from '../helper-functions';
+import { toFloat, chunkArray } from '../helper-functions';
 
 describe('Athame Contract (depository)', function () {
   const TOTAL_TOKENS: number = 1000000;
@@ -198,6 +198,30 @@ describe('Athame Contract (depository)', function () {
       expect(toFloat(await athameToken.balanceOf(owner.address), decimals)).to.equal(shares);
     });
 
+    // it('Should not be able to updateInvestors from fails', async function () {
+    //   await depository.unpause();
+
+    //   // no investors so from will fail
+    //   expect(depository.updateInvestors(0, 0)).to.be.revertedWith('from < accounts.length');
+
+    // });
+
+    // it('Should not be able to updateInvestors to fails', async function () {
+    //   await depository.unpause();
+
+    //   const decimals = await mockToken.decimals();
+
+    //   await mockToken.transfer(alice.address, ethers.utils.parseUnits('1000', decimals));
+
+    //   await treasury.grantRole(liquidityRole, mockToken.address); // set liquidity token
+    //   await treasury.grantRole(depositorRole, depository.address); // set depositor
+    //   await depository.connect(alice).buyShares(2); // buy shares from depository
+
+    //   // 1 investor so to will fail
+    //   expect(depository.updateInvestors(0, 100)).to.be.revertedWith('to <= accounts.length');
+
+    // });
+
     it('Should be able to claim', async function () {
       await depository.unpause();
 
@@ -219,27 +243,40 @@ describe('Athame Contract (depository)', function () {
       await ethers.provider.send("evm_mine", []);
 
       const rewards = 10000;
-      await depository.deposit(rewards);
-      const totalShareCount = await depository.totalShareCount();
-      const totalUnclaimed = await depository.totalUnclaimed();
+      const accountsLength = await depository.getAccountCount();
 
-      const finalAmount = rewards - (rewards * .1);
+      for (let index = 0; index < accountsLength; index++) {
+        const add = await depository.getAccountAtIndex(index);
+        const indexes = await depository.indexesFor(add);
 
-      expect(Number(totalUnclaimed)).to.equal(finalAmount);
+        await depository.updateInvestor(add, indexes);
+      }
 
-      // Reward per share
-      const rewardPerShare = finalAmount / totalShareCount;
-      const expectedBalance = Number(aliceBalance) + rewardPerShare * 2;
-      let [, , dividends] = await depository.investors(alice.address);
+      const vested = await depository.getVestedShares();
+      expect(Number(vested)).to.equal(9);
 
-      expect(Number(dividends)).to.equal(rewardPerShare * 2);
+      // await depository.deposit(rewards);
 
-      await depository.connect(alice).claim();
+      // const totalShareCount = await depository.totalShareCount();
+      // const totalUnclaimed = await depository.totalUnclaimed();
 
-      [, , dividends] = await depository.investors(alice.address);
+      // const finalAmount = rewards - (rewards * .1);
 
-      expect(Number(dividends)).to.equal(0);
-      expect(Number(await mockToken.balanceOf(alice.address))).to.equal(expectedBalance);
+      // expect(Number(totalUnclaimed)).to.equal(finalAmount);
+
+      // // Reward per share
+      // const rewardPerShare = finalAmount / totalShareCount;
+      // const expectedBalance = Number(aliceBalance) + rewardPerShare * 2;
+      // let [, , dividends] = await depository.investors(alice.address);
+
+      // expect(Number(dividends)).to.equal(rewardPerShare * 2);
+
+      // await depository.connect(alice).claim();
+
+      // [, , dividends] = await depository.investors(alice.address);
+
+      // expect(Number(dividends)).to.equal(0);
+      // expect(Number(await mockToken.balanceOf(alice.address))).to.equal(expectedBalance);
 
     });
   });

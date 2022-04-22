@@ -243,40 +243,51 @@ describe('Athame Contract (depository)', function () {
       await ethers.provider.send("evm_mine", []);
 
       const rewards = 10000;
+
+      // 1 get account length
       const accountsLength = await depository.getAccountCount();
 
+      // 2 update shares
       for (let index = 0; index < accountsLength; index++) {
         const add = await depository.getAccountAtIndex(index);
         const indexes = await depository.indexesFor(add);
 
-        await depository.updateInvestor(add, indexes);
+        await depository.updateInvestorShares(add, indexes);
       }
 
       const vested = await depository.getVestedShares();
       expect(Number(vested)).to.equal(9);
 
-      // await depository.deposit(rewards);
+      // 3 deposit
+      await depository.deposit(rewards);
 
-      // const totalShareCount = await depository.totalShareCount();
-      // const totalUnclaimed = await depository.totalUnclaimed();
+      // 4 
+      const rewardPerShare = Number(await depository.getRewardPerShare(rewards));
+      expect(Number(rewardPerShare)).to.equal(1000);
 
-      // const finalAmount = rewards - (rewards * .1);
+      // 5 
+      for (let index = 0; index < accountsLength; index++) {
+        const add = await depository.getAccountAtIndex(index);
+        await depository.updateInvestorDividends(add, rewardPerShare);
+      }
 
-      // expect(Number(totalUnclaimed)).to.equal(finalAmount);
+      const totalUnclaimed = await depository.totalUnclaimed();
+      const finalAmount = rewards - (rewards * .1);
 
-      // // Reward per share
-      // const rewardPerShare = finalAmount / totalShareCount;
-      // const expectedBalance = Number(aliceBalance) + rewardPerShare * 2;
-      // let [, , dividends] = await depository.investors(alice.address);
+      expect(Number(totalUnclaimed)).to.equal(finalAmount);
 
-      // expect(Number(dividends)).to.equal(rewardPerShare * 2);
+      // Reward per share
+      const expectedBalance = Number(aliceBalance) + rewardPerShare * 2;
+      let [, , dividends] = await depository.investors(alice.address);
 
-      // await depository.connect(alice).claim();
+      expect(Number(dividends)).to.equal(rewardPerShare * 2);
 
-      // [, , dividends] = await depository.investors(alice.address);
+      await depository.connect(alice).claim();
 
-      // expect(Number(dividends)).to.equal(0);
-      // expect(Number(await mockToken.balanceOf(alice.address))).to.equal(expectedBalance);
+      [, , dividends] = await depository.investors(alice.address);
+
+      expect(Number(dividends)).to.equal(0);
+      expect(Number(await mockToken.balanceOf(alice.address))).to.equal(expectedBalance);
 
     });
   });

@@ -7,10 +7,11 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "./interfaces/IERC20Mintable.sol";
 import "./interfaces/ITreasury.sol";
 
-contract AthameDepository is Ownable, Pausable {
+contract AthameDepository is Ownable, Pausable, ReentrancyGuard {
     using SafeERC20 for IERC20;
     using SafeMath for uint256;
 
@@ -101,7 +102,7 @@ contract AthameDepository is Ownable, Pausable {
      * update investor totalShareCount to reflect any vested investments
      totalShareCount is used to determine rewards per share
      */
-    function updateInvestor(address _account, uint256[] memory _indexes)
+    function updateInvestorShares(address _account, uint256[] memory _indexes)
         external
         onlyOwner
     {
@@ -137,28 +138,28 @@ contract AthameDepository is Ownable, Pausable {
             totalFee
         );
 
-        uint256 vestedShares = getVestedShares();
-
-        if (vestedShares > 0) {
-            // Reward per share
-            uint256 rewardPerShare = finalAmount / vestedShares;
-
-            for (uint32 i = 0; i < accounts.length; i++) {
-                // Calculate the reward
-                address currentHolder = accounts[i];
-                Investor storage investor = investors[currentHolder];
-                uint256 rewardToBeDistributed = rewardPerShare *
-                    investor.totalShareCount;
-
-                investor.unclaimedDividends = investor.unclaimedDividends.add(
-                    rewardToBeDistributed
-                );
-            }
-        }
-
         totalUnclaimed = totalUnclaimed.add(finalAmount);
 
         emit Deposit(finalAmount);
+    }
+
+    /**
+     * update investor totalShareCount to reflect any vested investments
+     totalShareCount is used to determine rewards per share
+     */
+    function updateInvestorDividends(address _account, uint256 _rewardPerShare)
+        external
+        onlyOwner
+    {
+        Investor storage investor = investors[_account];
+
+        // Calculate the reward
+        uint256 rewardToBeDistributed = _rewardPerShare *
+            investor.totalShareCount;
+
+        investor.unclaimedDividends = investor.unclaimedDividends.add(
+            rewardToBeDistributed
+        );
     }
 
     /* ======== USER FUNCTIONS ======== */
@@ -206,7 +207,7 @@ contract AthameDepository is Ownable, Pausable {
         emit OnInvestment(_shareCount, sharePrice.mul(_shareCount), msg.sender);
     }
 
-    function claim() external {
+    function claim() external nonReentrant {
         Investor storage investor = investors[msg.sender];
         uint256 contractBalance = IERC20(depositToken).balanceOf(address(this));
 
@@ -216,19 +217,36 @@ contract AthameDepository is Ownable, Pausable {
             "not enough liquidity"
         );
 
+        uint256 unclaimed = investor.unclaimedDividends;
+        investor.unclaimedDividends = 0;
+
         IERC20(depositToken).safeTransfer(
             msg.sender,
-            investor.unclaimedDividends
+            unclaimed
         );
-        totalUnclaimed = totalUnclaimed.sub(investor.unclaimedDividends);
-        totalClaimed = totalClaimed.add(investor.unclaimedDividends);
+        totalUnclaimed = totalUnclaimed.sub(unclaimed);
+        totalClaimed = totalClaimed.add(unclaimed);
 
-        emit Claim(msg.sender, investor.unclaimedDividends);
-
-        investor.unclaimedDividends = 0;
+        emit Claim(msg.sender, unclaimed);
     }
 
     /* ======== VIEW FUNCTIONS ======== */
+
+    function getRewardPerShare(uint256 _amount) public view returns (uint256) {
+        uint256 rewardPerShare = 0;
+        // fee
+        uint256 totalFee = _amount.mul(fee).div(1000);
+        uint256 finalAmount = _amount.sub(totalFee);
+
+        uint256 vestedShares = getVestedShares();
+
+        if (vestedShares > 0) {
+            // Reward per share
+            rewardPerShare = finalAmount / vestedShares;
+        }
+
+        return rewardPerShare;
+    }
 
     /**
      * gets the balance of the contract

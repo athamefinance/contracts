@@ -7,10 +7,11 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "./interfaces/IERC20Mintable.sol";
 import "./interfaces/ITreasury.sol";
 
-contract AthameDepository is Ownable, Pausable {
+contract AthameDepository is Ownable, Pausable, ReentrancyGuard {
     using SafeERC20 for IERC20;
     using SafeMath for uint256;
 
@@ -34,15 +35,15 @@ contract AthameDepository is Ownable, Pausable {
     }
 
     struct Investment {
-        uint256 created;
+        bool vested;
+        uint48 created;
         // after the vesting period this will be added to the totalShareCount
         // which is used to distribute dividends
         uint256 shareCount; // shares purchased
-        bool vested;
     }
 
     /* ======== STATE VARIABLES ======== */
-    uint256 public fee; // as % of deposit in hundreths. (100 = 10% = 0.1)
+    uint256 public immutable fee; // as % of deposit in hundreths. (100 = 10% = 0.1)
     address public feeCollector;
     uint256 public totalClaimed; // total claimed
     uint256 public totalUnclaimed; // waiting to be claimed
@@ -53,9 +54,8 @@ contract AthameDepository is Ownable, Pausable {
     address public ATHAME; // token used for voting privileges
     uint256 public sharePrice; // the price per share
     mapping(address => Investor) public investors; // keeps track of investors and shares per account
-    address[] public accounts; // list of all accounts or keys within investors
-    uint256 public accountCount;
-    uint256 public constant VESTING_PERIOD = 7 days;
+    address[] private accounts; // list of all accounts or keys within investors
+    uint256 public immutable vestingPeriod;
 
     /* ======== INITIALIZATION ======== */
 
@@ -76,6 +76,7 @@ contract AthameDepository is Ownable, Pausable {
 
         // defaults
         fee = 100;
+        vestingPeriod = 7 days;
     }
 
     /* ======== POLICY FUNCTIONS ======== */
@@ -96,6 +97,28 @@ contract AthameDepository is Ownable, Pausable {
     }
 
     /* ======== MAIN FUNCTIONS ======== */
+
+    /**
+     * update investor totalShareCount to reflect any vested investments
+     totalShareCount is used to determine rewards per share
+     */
+    function updateInvestorShares(address _account, uint256[] memory _indexes)
+        external
+        onlyOwner
+    {
+        Investor storage investor = investors[_account];
+
+        for (uint32 x = 0; x < _indexes.length; x++) {
+            uint256 index = _indexes[x];
+            investor.investments[index].vested = true;
+
+            // update investor share count
+            investor.totalShareCount = investor.totalShareCount.add(
+                investor.investments[index].shareCount
+            );
+        }
+    }
+
     function deposit(uint256 _amount) external onlyOwner {
         // fee
         uint256 totalFee = _amount.mul(fee).div(1000);
@@ -109,54 +132,34 @@ contract AthameDepository is Ownable, Pausable {
         );
 
         // Transfer the fee
-        if (fee != 0) {
-            IERC20(depositToken).safeTransferFrom(
-                msg.sender,
-                feeCollector,
-                totalFee
-            );
-        }
-
-        // update the investors total shares
-        updateInvestors();
-
-        uint256 vestedShares = 0;
-
-        // get total vested shares
-        for (uint32 i = 0; i < accounts.length; i++) {
-            address currentHolder = accounts[i];
-            Investor memory investor = investors[currentHolder];
-            vestedShares = vestedShares.add(investor.totalShareCount);
-        }
-
-        if (vestedShares > 0) {
-            // Reward per share
-            uint256 rewardPerShare = finalAmount / vestedShares;
-
-            for (uint32 i = 0; i < accounts.length; i++) {
-                // Calculate the reward
-                address currentHolder = accounts[i];
-                Investor storage investor = investors[currentHolder];
-                uint256 rewardToBeDistributed = rewardPerShare *
-                    investor.totalShareCount;
-
-                investor.unclaimedDividends = investor.unclaimedDividends.add(
-                    rewardToBeDistributed
-                );
-            }
-        }
+        IERC20(depositToken).safeTransferFrom(
+            msg.sender,
+            feeCollector,
+            totalFee
+        );
 
         totalUnclaimed = totalUnclaimed.add(finalAmount);
 
         emit Deposit(finalAmount);
     }
 
-    function withdraw(uint256 _amount) external onlyOwner {
-        IERC20(depositToken).safeTransfer(msg.sender, _amount);
+    /**
+     * update investor totalShareCount to reflect any vested investments
+     totalShareCount is used to determine rewards per share
+     */
+    function updateInvestorDividends(address _account, uint256 _rewardPerShare)
+        external
+        onlyOwner
+    {
+        Investor storage investor = investors[_account];
 
-        totalUnclaimed = totalUnclaimed.sub(_amount);
+        // Calculate the reward
+        uint256 rewardToBeDistributed = _rewardPerShare *
+            investor.totalShareCount;
 
-        emit Withdrawal(depositToken, _amount);
+        investor.unclaimedDividends = investor.unclaimedDividends.add(
+            rewardToBeDistributed
+        );
     }
 
     /* ======== USER FUNCTIONS ======== */
@@ -184,7 +187,6 @@ contract AthameDepository is Ownable, Pausable {
         if (investors[msg.sender].account == address(0)) {
             investors[msg.sender].account = msg.sender; // add investor
             accounts.push(msg.sender); // add account
-            accountCount += 1;
         }
 
         // send investor 1 governance token per share
@@ -196,7 +198,7 @@ contract AthameDepository is Ownable, Pausable {
         // update investor share count
         investors[msg.sender].investments.push(
             Investment({
-                created: block.timestamp,
+                created: uint48(block.timestamp),
                 shareCount: _shareCount,
                 vested: false
             })
@@ -205,7 +207,7 @@ contract AthameDepository is Ownable, Pausable {
         emit OnInvestment(_shareCount, sharePrice.mul(_shareCount), msg.sender);
     }
 
-    function claim() external {
+    function claim() external nonReentrant {
         Investor storage investor = investors[msg.sender];
         uint256 contractBalance = IERC20(depositToken).balanceOf(address(this));
 
@@ -215,19 +217,36 @@ contract AthameDepository is Ownable, Pausable {
             "not enough liquidity"
         );
 
+        uint256 unclaimed = investor.unclaimedDividends;
+        investor.unclaimedDividends = 0;
+
         IERC20(depositToken).safeTransfer(
             msg.sender,
-            investor.unclaimedDividends
+            unclaimed
         );
-        totalUnclaimed = totalUnclaimed.sub(investor.unclaimedDividends);
-        totalClaimed = totalClaimed.add(investor.unclaimedDividends);
+        totalUnclaimed = totalUnclaimed.sub(unclaimed);
+        totalClaimed = totalClaimed.add(unclaimed);
 
-        emit Claim(msg.sender, investor.unclaimedDividends);
-
-        investor.unclaimedDividends = 0;
+        emit Claim(msg.sender, unclaimed);
     }
 
     /* ======== VIEW FUNCTIONS ======== */
+
+    function getRewardPerShare(uint256 _amount) public view returns (uint256) {
+        uint256 rewardPerShare = 0;
+        // fee
+        uint256 totalFee = _amount.mul(fee).div(1000);
+        uint256 finalAmount = _amount.sub(totalFee);
+
+        uint256 vestedShares = getVestedShares();
+
+        if (vestedShares > 0) {
+            // Reward per share
+            rewardPerShare = finalAmount / vestedShares;
+        }
+
+        return rewardPerShare;
+    }
 
     /**
      * gets the balance of the contract
@@ -236,32 +255,65 @@ contract AthameDepository is Ownable, Pausable {
         return IERC20(depositToken).balanceOf(address(this));
     }
 
-    /* ======== PRIVATE ======== */
+    function getAccountCount() public view returns (uint256 count) {
+        return accounts.length;
+    }
 
-    /**
-     * update investors totalShareCount to reflect any vested investments
-     totalShareCount is used to determine rewards per share 
-     */
-    function updateInvestors() private {
-        for (uint32 i = 0; i < accounts.length; i++) {
-            address currentHolder = accounts[i];
-            Investor storage investor = investors[currentHolder];
+    function getAccountAtIndex(uint256 _index)
+        public
+        view
+        returns (address accountAddress)
+    {
+        require(_index >= 0 && _index < accounts.length, "index out of range");
 
-            for (uint32 x = 0; x < investor.investments.length; x++) {
-                if (
-                    !investor.investments[x].vested || // if it's vested then bypass
-                    getDaysPassed(investor.investments[x].created) >=
-                    VESTING_PERIOD
-                ) {
-                    investor.investments[x].vested = true;
+        return accounts[_index];
+    }
 
-                    // update investor share count
-                    investor.totalShareCount = investor.totalShareCount.add(
-                        investor.investments[x].shareCount
-                    );
-                }
+    function indexesFor(address _account)
+        public
+        view
+        returns (uint256[] memory)
+    {
+        Investor memory investor = investors[_account];
+
+        uint256 length;
+        for (uint256 i = 0; i < investor.investments.length; i++) {
+            if (
+                !investor.investments[i].vested || // if it's vested then bypass
+                getDaysPassed(investor.investments[i].created) >= vestingPeriod
+            ) {
+                length++;
             }
         }
+
+        uint256[] memory indexes = new uint256[](length);
+        uint256 position = 0;
+
+        for (uint256 i = 0; i < investor.investments.length; i++) {
+            if (
+                !investor.investments[i].vested || // if it's vested then bypass
+                getDaysPassed(investor.investments[i].created) >= vestingPeriod
+            ) {
+                indexes[position] = i;
+                position++;
+            }
+        }
+
+        return indexes;
+    }
+
+    /* ======== PRIVATE ======== */
+    function getVestedShares() public view returns (uint256) {
+        uint256 vestedShares = 0;
+
+        // get total vested shares
+        for (uint32 i = 0; i < accounts.length; i++) {
+            address currentHolder = accounts[i];
+            Investor memory investor = investors[currentHolder];
+            vestedShares = vestedShares.add(investor.totalShareCount);
+        }
+
+        return vestedShares;
     }
 
     /**

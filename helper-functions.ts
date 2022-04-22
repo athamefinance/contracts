@@ -22,4 +22,25 @@ export const toFloat = (value: BigNumberish, decimals: number): number => {
     return parseFloat(ethers.utils.formatUnits(value, decimals));
 }
 
+export const chunkArray = (length: number, chunkSize: number) => {
+    var begin = -1;
+    var results = [];
+
+    for (var i = 0; i < length; i++) {
+        if (begin == -1) {
+            begin = i;
+        }
+
+        if (i % chunkSize == chunkSize - 1)
+        {
+            results.push([begin, i]);
+            begin = -1;
+        }
+    }
+
+    return results;
+}
+
+
+
 

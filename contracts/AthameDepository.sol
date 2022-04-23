@@ -43,20 +43,19 @@ contract AthameDepository is Ownable, Pausable, ReentrancyGuard {
     }
 
     /* ======== STATE VARIABLES ======== */
-    uint256 public immutable fee; // as % of deposit in hundreths. (100 = 10% = 0.1)
-    address public feeCollector;
-    uint256 public totalClaimed; // total claimed
-    uint256 public totalUnclaimed; // waiting to be claimed
-    uint256 public totalShareCount; // sum of investor shares
     address public treasury; // contract address that receives deposits
     address public depositToken; // token allowed for deposits
     /* solhint-disable var-name-mixedcase */
     address public ATHAME; // token used for voting privileges
-    uint256 public sharePrice; // the price per share
+    address public feeCollector;
     mapping(address => Investor) public investors; // keeps track of investors and shares per account
     address[] private accounts; // list of all accounts or keys within investors
     uint256 public immutable vestingPeriod;
-
+    uint256 public immutable fee; // as % of deposit in hundreths. (100 = 10% = 0.1)
+    uint256 public totalClaimed; // total claimed
+    uint256 public totalUnclaimed; // waiting to be claimed
+    uint256 public totalShareCount; // sum of investor shares
+    uint256 public sharePrice; // the price per share
     /* ======== INITIALIZATION ======== */
 
     constructor(
@@ -220,10 +219,7 @@ contract AthameDepository is Ownable, Pausable, ReentrancyGuard {
         uint256 unclaimed = investor.unclaimedDividends;
         investor.unclaimedDividends = 0;
 
-        IERC20(depositToken).safeTransfer(
-            msg.sender,
-            unclaimed
-        );
+        IERC20(depositToken).safeTransfer(msg.sender, unclaimed);
         totalUnclaimed = totalUnclaimed.sub(unclaimed);
         totalClaimed = totalClaimed.add(unclaimed);
 

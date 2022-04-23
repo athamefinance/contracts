@@ -21,9 +21,9 @@ contract AthameTreasury is ITreasury, Ownable, AccessControl {
     bytes32 public constant DEPOSITOR = keccak256("DEPOSITOR");
 
     /* ======== STATE VARIABLES ======== */
+    uint256 public totalReserves;
     string internal notManager = "Treasury: not admin";
     string internal invalidToken = "Treasury: invalid token";
-    uint256 public totalReserves;
 
     /* ======== INITIALIZATION ======== */
 

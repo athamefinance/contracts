@@ -3,7 +3,7 @@
 pragma solidity ^0.8.13;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
@@ -11,7 +11,7 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "./interfaces/IERC20Mintable.sol";
 import "./interfaces/ITreasury.sol";
 
-contract AthameDepository is Ownable, Pausable, ReentrancyGuard {
+contract AthameDepository is AccessControl, Pausable, ReentrancyGuard {
     using SafeERC20 for IERC20;
     using SafeMath for uint256;
 
@@ -25,6 +25,9 @@ contract AthameDepository is Ownable, Pausable, ReentrancyGuard {
     event Withdrawal(address indexed token, uint256 amount);
     event Deposit(uint256 amount);
     event Claim(address indexed investor, uint256 amount);
+
+    /* ======== CONSTANTS ======== */
+    bytes32 public constant DEPOSITOR = keccak256("DEPOSITOR");
 
     /* ======== STRUCTS ======== */
     struct Investor {
@@ -56,6 +59,8 @@ contract AthameDepository is Ownable, Pausable, ReentrancyGuard {
     uint256 public totalUnclaimed; // waiting to be claimed
     uint256 public totalShareCount; // sum of investor shares
     uint256 public sharePrice; // the price per share
+    string internal notManager = "Depository: not admin";
+
     /* ======== INITIALIZATION ======== */
 
     constructor(
@@ -65,6 +70,8 @@ contract AthameDepository is Ownable, Pausable, ReentrancyGuard {
         address _feeCollector,
         uint256 _sharePrice
     ) {
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+
         _pause(); // initialize paused
 
         feeCollector = _feeCollector;
@@ -79,19 +86,23 @@ contract AthameDepository is Ownable, Pausable, ReentrancyGuard {
     }
 
     /* ======== POLICY FUNCTIONS ======== */
-    function pause() external onlyOwner {
+    function pause() external {
+        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), notManager);
         _pause();
     }
 
-    function unpause() external onlyOwner {
+    function unpause() external {
+        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), notManager);
         _unpause();
     }
 
-    function setDepositToken(address _token) external onlyOwner {
+    function setDepositToken(address _token) external {
+        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), notManager);
         depositToken = _token;
     }
 
-    function setSharePrice(uint256 _value) external onlyOwner {
+    function setSharePrice(uint256 _value) external {
+        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), notManager);
         sharePrice = _value;
     }
 
@@ -103,8 +114,12 @@ contract AthameDepository is Ownable, Pausable, ReentrancyGuard {
      */
     function updateInvestorShares(address _account, uint256[] memory _indexes)
         external
-        onlyOwner
     {
+        require(
+            hasRole(DEFAULT_ADMIN_ROLE, msg.sender) ||
+                hasRole(DEPOSITOR, msg.sender),
+            notManager
+        );
         Investor storage investor = investors[_account];
 
         for (uint32 x = 0; x < _indexes.length; x++) {
@@ -118,7 +133,12 @@ contract AthameDepository is Ownable, Pausable, ReentrancyGuard {
         }
     }
 
-    function deposit(uint256 _amount) external onlyOwner {
+    function deposit(uint256 _amount) external {
+        require(
+            hasRole(DEFAULT_ADMIN_ROLE, msg.sender) ||
+                hasRole(DEPOSITOR, msg.sender),
+            notManager
+        );
         // fee
         uint256 totalFee = _amount.mul(fee).div(1000);
         uint256 finalAmount = _amount.sub(totalFee);
@@ -148,8 +168,12 @@ contract AthameDepository is Ownable, Pausable, ReentrancyGuard {
      */
     function updateInvestorDividends(address _account, uint256 _rewardPerShare)
         external
-        onlyOwner
     {
+        require(
+            hasRole(DEFAULT_ADMIN_ROLE, msg.sender) ||
+                hasRole(DEPOSITOR, msg.sender),
+            notManager
+        );
         Investor storage investor = investors[_account];
 
         // Calculate the reward

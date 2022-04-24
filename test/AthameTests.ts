@@ -198,29 +198,23 @@ describe('Athame Contract (depository)', function () {
       expect(toFloat(await athameToken.balanceOf(owner.address), decimals)).to.equal(shares);
     });
 
-    // it('Should not be able to updateInvestors from fails', async function () {
-    //   await depository.unpause();
+    it('Deposit fee', async function () {
+      await depository.unpause();
 
-    //   // no investors so from will fail
-    //   expect(depository.updateInvestors(0, 0)).to.be.revertedWith('from < accounts.length');
+      const decimals = await mockToken.decimals();
 
-    // });
+      await mockToken.transfer(alice.address, ethers.utils.parseUnits('1000', decimals));
 
-    // it('Should not be able to updateInvestors to fails', async function () {
-    //   await depository.unpause();
+      await treasury.grantRole(liquidityRole, mockToken.address); // set liquidity token
+      await treasury.grantRole(depositorRole, depository.address); // set depositor
 
-    //   const decimals = await mockToken.decimals();
-
-    //   await mockToken.transfer(alice.address, ethers.utils.parseUnits('1000', decimals));
-
-    //   await treasury.grantRole(liquidityRole, mockToken.address); // set liquidity token
-    //   await treasury.grantRole(depositorRole, depository.address); // set depositor
-    //   await depository.connect(alice).buyShares(2); // buy shares from depository
-
-    //   // 1 investor so to will fail
-    //   expect(depository.updateInvestors(0, 100)).to.be.revertedWith('to <= accounts.length');
-
-    // });
+      const rewards = 100;
+      const fee = toFloat(await depository.fee(), decimals) * 1000;
+      await depository.deposit(rewards);
+      const totalUnclaimed = await depository.totalUnclaimed();
+      const finalAmount = rewards - (rewards * fee);
+      expect(Number(totalUnclaimed)).to.equal(finalAmount);
+    });
 
     it('Should be able to claim', async function () {
       await depository.unpause();
@@ -271,8 +265,9 @@ describe('Athame Contract (depository)', function () {
         await depository.updateInvestorDividends(add, rewardPerShare);
       }
 
+      const fee = toFloat(await depository.fee(), decimals) * 1000;
       const totalUnclaimed = await depository.totalUnclaimed();
-      const finalAmount = rewards - (rewards * .1);
+      const finalAmount = rewards - (rewards * fee);
 
       expect(Number(totalUnclaimed)).to.equal(finalAmount);
 

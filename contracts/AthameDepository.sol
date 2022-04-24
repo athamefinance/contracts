@@ -54,7 +54,7 @@ contract AthameDepository is AccessControl, Pausable, ReentrancyGuard {
     mapping(address => Investor) public investors; // keeps track of investors and shares per account
     address[] private accounts; // list of all accounts or keys within investors
     uint256 public immutable vestingPeriod;
-    uint256 public immutable fee; // as % of deposit in hundreths. (100 = 10% = 0.1)
+    uint256 public immutable fee; // % of deposit in tenths. (100 = 10% = 0.1)
     uint256 public totalClaimed; // total claimed
     uint256 public totalUnclaimed; // waiting to be claimed
     uint256 public totalShareCount; // sum of investor shares

@@ -4,7 +4,6 @@ pragma solidity ^0.8.13;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
@@ -13,7 +12,6 @@ import "./interfaces/ITreasury.sol";
 
 contract AthameDepository is AccessControl, Pausable, ReentrancyGuard {
     using SafeERC20 for IERC20;
-    using SafeMath for uint256;
 
     /* ======== EVENTS ======== */
 
@@ -336,7 +334,6 @@ contract AthameDepository is AccessControl, Pausable, ReentrancyGuard {
      * get days passed from date till block.timestamp (now)
      */
     function getDaysPassed(uint256 date) private view returns (uint256) {
-        (, uint256 value) = block.timestamp.trySub(date);
-        return value / 1 days;
+        return (block.timestamp - date) / 1 days;
     }
 }

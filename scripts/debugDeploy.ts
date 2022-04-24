@@ -21,7 +21,7 @@ async function main() {
     console.log('AthameToken deployed to:', athameToken.address);
     console.log();
 
-    // deploy dai token
+    // deploy deposit token
     const mockToken = await mockTokenFactory.deploy();
     await mockToken.deployed();
     const decimals = await mockToken.decimals();

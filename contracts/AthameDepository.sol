@@ -127,9 +127,7 @@ contract AthameDepository is AccessControl, Pausable, ReentrancyGuard {
             investor.investments[index].vested = true;
 
             // update investor share count
-            investor.totalShareCount = investor.totalShareCount.add(
-                investor.investments[index].shareCount
-            );
+            investor.totalShareCount += investor.investments[index].shareCount;
         }
     }
 
@@ -140,8 +138,8 @@ contract AthameDepository is AccessControl, Pausable, ReentrancyGuard {
             notManager
         );
         // fee
-        uint256 totalFee = _amount.mul(fee).div(1000);
-        uint256 finalAmount = _amount.sub(totalFee);
+        uint256 totalFee = (_amount * fee) / 1000;
+        uint256 finalAmount = _amount - totalFee;
 
         // transfer funds in
         IERC20(depositToken).safeTransferFrom(
@@ -157,7 +155,7 @@ contract AthameDepository is AccessControl, Pausable, ReentrancyGuard {
             totalFee
         );
 
-        totalUnclaimed = totalUnclaimed.add(finalAmount);
+        totalUnclaimed += finalAmount;
 
         emit Deposit(finalAmount);
     }
@@ -180,9 +178,7 @@ contract AthameDepository is AccessControl, Pausable, ReentrancyGuard {
         uint256 rewardToBeDistributed = _rewardPerShare *
             investor.totalShareCount;
 
-        investor.unclaimedDividends = investor.unclaimedDividends.add(
-            rewardToBeDistributed
-        );
+        investor.unclaimedDividends += rewardToBeDistributed;
     }
 
     /* ======== USER FUNCTIONS ======== */
@@ -204,7 +200,7 @@ contract AthameDepository is AccessControl, Pausable, ReentrancyGuard {
         ITreasury(treasury).deposit(_totalAmount, depositToken);
 
         // update contract total shares
-        totalShareCount = totalShareCount.add(_shareCount);
+        totalShareCount += _shareCount;
 
         // if null then add
         if (investors[msg.sender].account == address(0)) {
@@ -227,7 +223,7 @@ contract AthameDepository is AccessControl, Pausable, ReentrancyGuard {
             })
         );
 
-        emit OnInvestment(_shareCount, sharePrice.mul(_shareCount), msg.sender);
+        emit OnInvestment(_shareCount, sharePrice * _shareCount, msg.sender);
     }
 
     function claim() external nonReentrant {
@@ -244,8 +240,8 @@ contract AthameDepository is AccessControl, Pausable, ReentrancyGuard {
         investor.unclaimedDividends = 0;
 
         IERC20(depositToken).safeTransfer(msg.sender, unclaimed);
-        totalUnclaimed = totalUnclaimed.sub(unclaimed);
-        totalClaimed = totalClaimed.add(unclaimed);
+        totalUnclaimed -= unclaimed;
+        totalClaimed += unclaimed;
 
         emit Claim(msg.sender, unclaimed);
     }
@@ -255,8 +251,8 @@ contract AthameDepository is AccessControl, Pausable, ReentrancyGuard {
     function getRewardPerShare(uint256 _amount) public view returns (uint256) {
         uint256 rewardPerShare = 0;
         // fee
-        uint256 totalFee = _amount.mul(fee).div(1000);
-        uint256 finalAmount = _amount.sub(totalFee);
+        uint256 totalFee = (_amount * fee) / 1000;
+        uint256 finalAmount = _amount - totalFee;
 
         uint256 vestedShares = getVestedShares();
 
@@ -330,7 +326,7 @@ contract AthameDepository is AccessControl, Pausable, ReentrancyGuard {
         for (uint32 i = 0; i < accounts.length; i++) {
             address currentHolder = accounts[i];
             Investor memory investor = investors[currentHolder];
-            vestedShares = vestedShares.add(investor.totalShareCount);
+            vestedShares += investor.totalShareCount;
         }
 
         return vestedShares;

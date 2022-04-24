@@ -9,7 +9,6 @@ import "./interfaces/ITreasury.sol";
 
 contract AthameTreasury is ITreasury, AccessControl {
     using SafeERC20 for IERC20;
-    using SafeMath for uint256;
 
     /* ======== EVENTS ======== */
     event Deposit(address indexed token, uint256 amount);
@@ -38,7 +37,7 @@ contract AthameTreasury is ITreasury, AccessControl {
 
         IERC20(_token).safeTransfer(msg.sender, _amount);
 
-        totalReserves = totalReserves.sub(_amount);
+        totalReserves -= _amount;
 
         emit Withdrawal(_token, _amount);
     }
@@ -53,7 +52,7 @@ contract AthameTreasury is ITreasury, AccessControl {
 
         IERC20(_token).safeTransferFrom(msg.sender, address(this), _amount);
 
-        totalReserves = totalReserves.add(_amount);
+        totalReserves += _amount;
 
         emit Deposit(_token, _amount);
 

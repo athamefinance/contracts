@@ -68,6 +68,8 @@ describe('Athame Contract (depository)', function () {
       sharePrice); // 10 of chosen stable coin
 
     await athameToken.grantMinterRole(depository.address);
+    await athameToken.grantRole(adminRole, depository.address);
+    await athameToken.transferOwnership(depository.address);
 
     console.log('Depository deployed to:', depository.address);
 
@@ -111,6 +113,9 @@ describe('Athame Contract (depository)', function () {
 
     it('treasury: Owner should be manager', async function () {
       expect((await treasury.hasRole(adminRole, owner.address))).to.equal(true);
+
+      await treasury.grantRole(adminRole, feeCollector.address); // set second admin
+      expect((await treasury.hasRole(adminRole, feeCollector.address))).to.equal(true);
     });
 
     it('treasury: Token should be liquidity token', async function () {
@@ -131,6 +136,23 @@ describe('Athame Contract (depository)', function () {
   });
 
   describe('Depository', function () {
+
+    it('Should be able to migrate', async function () {
+      expect((await athameToken.hasRole(adminRole, depository.address))).to.equal(true);
+      expect((await athameToken.owner())).to.equal(depository.address);
+
+      // simulate a new depository contract
+      await depository.migrate(owner.address);
+      await athameToken.connect(owner).grantMinterRole(treasury.address);
+      await athameToken.connect(owner).grantRole(adminRole, treasury.address);
+      await athameToken.connect(owner).transferOwnership(treasury.address);
+
+      const minterRole = await athameToken.MINTER_ROLE();
+
+      expect((await athameToken.hasRole(minterRole, treasury.address))).to.equal(true);
+      expect((await athameToken.hasRole(adminRole, treasury.address))).to.equal(true);
+      expect((await athameToken.owner())).to.equal(treasury.address);
+    });
 
     it('Should not be able to buy', async function () {
       await depository.unpause();

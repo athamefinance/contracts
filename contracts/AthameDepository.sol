@@ -23,6 +23,7 @@ contract AthameDepository is AccessControl, Pausable, ReentrancyGuard {
     event Withdrawal(address indexed token, uint256 amount);
     event Deposit(uint256 amount);
     event Claim(address indexed investor, uint256 amount);
+    event TokenOwnerTransferred(address indexed newOwner);
 
     /* ======== CONSTANTS ======== */
     bytes32 public constant DEPOSITOR = keccak256("DEPOSITOR");
@@ -104,7 +105,7 @@ contract AthameDepository is AccessControl, Pausable, ReentrancyGuard {
         sharePrice = _value;
     }
 
-    /* ======== MAIN FUNCTIONS ======== */
+    /* ======== ADMIN FUNCTIONS ======== */
 
     /**
      * update investor totalShareCount to reflect any vested investments
@@ -179,8 +180,25 @@ contract AthameDepository is AccessControl, Pausable, ReentrancyGuard {
         investor.unclaimedDividends += rewardToBeDistributed;
     }
 
+    /**
+     * this contract is the owner of the ATHAME token
+     this will migrate the ownership to the new owner
+     which can then be switched to the new contract
+     */
+    function migrate(address newOwner) external {
+        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), notManager);
+        require(newOwner != address(0), "zero address");
+
+        IERC20Mintable(ATHAME).transferOwnership(newOwner);
+        
+        emit TokenOwnerTransferred(newOwner);
+    }
+
     /* ======== USER FUNCTIONS ======== */
 
+    /**
+     * user can buy shares and ATHAME token is minted
+     */
     function buyShares(uint256 _shareCount) external whenNotPaused {
         uint256 _totalPrice = sharePrice;
         uint256 _totalAmount = _totalPrice * _shareCount;
@@ -224,6 +242,9 @@ contract AthameDepository is AccessControl, Pausable, ReentrancyGuard {
         emit OnInvestment(_shareCount, sharePrice * _shareCount, msg.sender);
     }
 
+    /**
+     * user can claim dividends
+     */
     function claim() external nonReentrant {
         Investor storage investor = investors[msg.sender];
         uint256 contractBalance = IERC20(depositToken).balanceOf(address(this));

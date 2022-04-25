@@ -50,11 +50,14 @@ async function main() {
 
     const depositorRole = await treasury.DEPOSITOR();
     const liquidityRole = await treasury.LIQUIDITYTOKEN();
+    const adminRole = await athameToken.DEFAULT_ADMIN_ROLE();
 
     // these need to be run before accepting investors
     await treasury.grantRole(liquidityRole, mockToken.address); // set liquidity token
     await treasury.grantRole(depositorRole, depository.address); // set depositor
     await athameToken.grantMinterRole(depository.address); // set minter role
+    await athameToken.grantRole(adminRole, depository.address); // set depositor admin
+    await athameToken.transferOwnership(depository.address);
     await depository.unpause(); // then unpause
 
     await mockToken.transfer(feeCollector.address, ethers.utils.parseUnits('5000', decimals));

@@ -20,7 +20,6 @@ contract AthameDepository is AccessControl, Pausable, ReentrancyGuard {
         uint256 investmentValue,
         address investor
     );
-    event Withdrawal(address indexed token, uint256 amount);
     event Deposit(uint256 amount);
     event Claim(address indexed investor, uint256 amount);
     event TokenOwnerTransferred(address indexed newOwner);
